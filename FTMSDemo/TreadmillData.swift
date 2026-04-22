@@ -12,7 +12,12 @@ struct TreadmillData: Identifiable {
 
     var speedKmh: Double?
     var incline: Double?
-    var cadence: Int?
+    var cadenceSpm: Int?
+    var paceMinPerKm: Double?
     var heartRate: Int?
     var distanceMeters: Double?
+
+    var distanceKilometers: Double {
+        (distanceMeters ?? 0) / 1000.0
+    }
 }
