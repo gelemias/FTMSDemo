@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CE30D5732EC88CC40018C01F /* FTMSDemoWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CE30D5612EC88CC40018C01F /* FTMSDemoWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		CE30D5722EC88CC40018C01F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE30D5352EC88CC40018C01F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CE30D5652EC88CC40018C01F;
+			remoteInfo = FTMSDemoWidgets;
+		};
 		CEF406172F98B31B0095AFAC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CE30D5352EC88CC40018C01F /* Project object */;
@@ -16,15 +27,58 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		CE30D5702EC88CC40018C01F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CE30D5732EC88CC40018C01F /* FTMSDemoWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		CE30D53D2EC88CC40018C01F /* FTMSDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FTMSDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE30D5612EC88CC40018C01F /* FTMSDemoWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FTMSDemoWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEF406132F98B31B0095AFAC /* FTMSDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FTMSDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CE30D5742EC88CC40018C01F /* Exceptions for "FTMSDemoWidgets" folder in "FTMSDemoWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CE30D5652EC88CC40018C01F /* FTMSDemoWidgets */;
+		};
+		CE30D5752EC88CC40018C01F /* Exceptions for "FTMSDemo" folder in "FTMSDemo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CE30D53C2EC88CC40018C01F /* FTMSDemo */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CE30D53F2EC88CC40018C01F /* FTMSDemo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE30D5752EC88CC40018C01F /* Exceptions for "FTMSDemo" folder in "FTMSDemo" target */,
+			);
 			path = FTMSDemo;
+			sourceTree = "<group>";
+		};
+		CE30D5602EC88CC40018C01F /* FTMSDemoWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE30D5742EC88CC40018C01F /* Exceptions for "FTMSDemoWidgets" folder in "FTMSDemoWidgets" target */,
+			);
+			path = FTMSDemoWidgets;
 			sourceTree = "<group>";
 		};
 		CEF406142F98B31B0095AFAC /* FTMSDemoTests */ = {
@@ -36,6 +90,13 @@
 
 /* Begin PBXFrameworksBuildPhase section */
 		CE30D53A2EC88CC40018C01F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE30D5642EC88CC40018C01F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -58,6 +119,7 @@
 				CE30D53F2EC88CC40018C01F /* FTMSDemo */,
 				CEF406142F98B31B0095AFAC /* FTMSDemoTests */,
 				CE30D53E2EC88CC40018C01F /* Products */,
+				CE8EBC63306A958900D79951 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -66,8 +128,17 @@
 			children = (
 				CE30D53D2EC88CC40018C01F /* FTMSDemo.app */,
 				CEF406132F98B31B0095AFAC /* FTMSDemoTests.xctest */,
+				CE30D5612EC88CC40018C01F /* FTMSDemoWidgets.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		CE8EBC63306A958900D79951 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				CE30D5602EC88CC40018C01F /* FTMSDemoWidgets */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -80,10 +151,12 @@
 				CE30D5392EC88CC40018C01F /* Sources */,
 				CE30D53A2EC88CC40018C01F /* Frameworks */,
 				CE30D53B2EC88CC40018C01F /* Resources */,
+				CE30D5702EC88CC40018C01F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CE30D5712EC88CC40018C01F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				CE30D53F2EC88CC40018C01F /* FTMSDemo */,
@@ -94,6 +167,26 @@
 			productName = FTMSDemo;
 			productReference = CE30D53D2EC88CC40018C01F /* FTMSDemo.app */;
 			productType = "com.apple.product-type.application";
+		};
+		CE30D5652EC88CC40018C01F /* FTMSDemoWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE30D5662EC88CC40018C01F /* Build configuration list for PBXNativeTarget "FTMSDemoWidgets" */;
+			buildPhases = (
+				CE30D5622EC88CC40018C01F /* Sources */,
+				CE30D5642EC88CC40018C01F /* Frameworks */,
+				CE30D5632EC88CC40018C01F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CE30D5602EC88CC40018C01F /* FTMSDemoWidgets */,
+			);
+			name = FTMSDemoWidgets;
+			productName = FTMSDemoWidgets;
+			productReference = CE30D5612EC88CC40018C01F /* FTMSDemoWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		CEF406122F98B31B0095AFAC /* FTMSDemoTests */ = {
 			isa = PBXNativeTarget;
@@ -153,12 +246,20 @@
 			targets = (
 				CE30D53C2EC88CC40018C01F /* FTMSDemo */,
 				CEF406122F98B31B0095AFAC /* FTMSDemoTests */,
+				CE30D5652EC88CC40018C01F /* FTMSDemoWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		CE30D53B2EC88CC40018C01F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE30D5632EC88CC40018C01F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -182,6 +283,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CE30D5622EC88CC40018C01F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CEF4060F2F98B31B0095AFAC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -192,6 +300,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		CE30D5712EC88CC40018C01F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CE30D5652EC88CC40018C01F /* FTMSDemoWidgets */;
+			targetProxy = CE30D5722EC88CC40018C01F /* PBXContainerItemProxy */;
+		};
 		CEF406182F98B31B0095AFAC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = CE30D53C2EC88CC40018C01F /* FTMSDemo */;
@@ -321,16 +434,22 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FTMSDemo/FTMSDemo.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3XW8AT7UG5;
+				DEVELOPMENT_TEAM = 944C27A93C;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FTMSDemo/Info.plist;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "This app uses Bluetooth to find and control treadmills.";
 				INFOPLIST_KEY_NSBluetoothWhileInUseUsageDescription = "This app uses Bluetooth to connect to fitness machines.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "FTMS Demo uses your workout session to keep treadmill intervals running while the app is in the background.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "FTMS Demo uses your workout session to keep treadmill intervals running while the app is in the background.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -348,6 +467,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gelemias.dev.FTMSDemo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -367,16 +487,22 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FTMSDemo/FTMSDemo.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3XW8AT7UG5;
+				DEVELOPMENT_TEAM = 944C27A93C;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FTMSDemo/Info.plist;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "This app uses Bluetooth to find and control treadmills.";
 				INFOPLIST_KEY_NSBluetoothWhileInUseUsageDescription = "This app uses Bluetooth to connect to fitness machines.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "FTMS Demo uses your workout session to keep treadmill intervals running while the app is in the background.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "FTMS Demo uses your workout session to keep treadmill intervals running while the app is in the background.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -394,6 +520,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gelemias.dev.FTMSDemo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -408,13 +535,49 @@
 			};
 			name = Release;
 		};
+		CE30D5672EC88CC40018C01F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 944C27A93C;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FTMSDemoWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gelemias.dev.FTMSDemo.widgets;
+				PRODUCT_NAME = FTMSDemoWidgets;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CE30D5682EC88CC40018C01F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 944C27A93C;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FTMSDemoWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gelemias.dev.FTMSDemo.widgets;
+				PRODUCT_NAME = FTMSDemoWidgets;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		CEF4061A2F98B31B0095AFAC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3XW8AT7UG5;
+				DEVELOPMENT_TEAM = 944C27A93C;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
@@ -437,7 +600,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3XW8AT7UG5;
+				DEVELOPMENT_TEAM = 944C27A93C;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
@@ -472,6 +635,15 @@
 			buildConfigurations = (
 				CE30D5492EC88CC60018C01F /* Debug */,
 				CE30D54A2EC88CC60018C01F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CE30D5662EC88CC40018C01F /* Build configuration list for PBXNativeTarget "FTMSDemoWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE30D5672EC88CC40018C01F /* Debug */,
+				CE30D5682EC88CC40018C01F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

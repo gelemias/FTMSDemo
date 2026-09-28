@@ -11,6 +11,19 @@ import Testing
 
 struct FTMSDemoTests {
 
+    @Test func todayTrainingPlanMatchesWorkoutStructure() {
+        let plan = TrainingPlan.today
+
+        #expect(plan.steps.count == 10)
+        #expect(plan.steps.filter { $0.phase == .interval }.count == 4)
+        #expect(plan.steps.filter { $0.phase == .recovery }.count == 4)
+        #expect(plan.steps.first?.durationSeconds == 12 * 60)
+        #expect(plan.steps.last?.durationSeconds == 10 * 60)
+        #expect(plan.totalDuration == 48 * 60)
+        #expect(plan.steps[1].targetSpeedKmh == 13.0)
+        #expect(plan.steps[2].durationSeconds == 150)
+    }
+
     @Test func scanningResetsPreviousSelectionAndSetsPreludeStatus() {
         var presentation = FTMSConnectionPresentation(
             statusMessage: "Connected to DeckRun.",
@@ -34,7 +47,7 @@ struct FTMSDemoTests {
         #expect(presentation.connectedDeviceName == nil)
         #expect(presentation.discoveredTreadmills.isEmpty)
         #expect(presentation.selectedTreadmillID == nil)
-        #expect(presentation.statusMessage == "Looking for threadmills")
+        #expect(presentation.statusMessage == "Looking for treadmills")
     }
 
     @Test func discoveredTreadmillsAreUpsertedAndSortedBySignalStrength() {
@@ -89,7 +102,7 @@ struct FTMSDemoTests {
         )
         #expect(
             FTMSConnectionPresentation.bluetoothUnavailableMessage(for: .unknown)
-                == "Looking for threadmills"
+                == "Looking for treadmills"
         )
     }
 }

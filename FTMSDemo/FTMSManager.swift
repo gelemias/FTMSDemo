@@ -12,7 +12,7 @@ import Combine
 class FTMSManager: NSObject, ObservableObject {
 
     @Published var treadmillData = TreadmillData()
-    @Published var statusMessage: String = "Looking for threadmills" {
+    @Published var statusMessage: String = "Looking for treadmills" {
         didSet {
             print(statusMessage)
         }
@@ -49,7 +49,11 @@ class FTMSManager: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        central = CBCentralManager(delegate: self, queue: .main)
+        central = CBCentralManager(
+            delegate: self,
+            queue: .main,
+            options: [CBCentralManagerOptionRestoreIdentifierKey: "com.gelemias.dev.FTMSDemo.central"]
+        )
         publishPresentation()
     }
 
@@ -356,6 +360,17 @@ extension FTMSManager {
 }
 
 extension FTMSManager: CBCentralManagerDelegate {
+    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
+        guard let restoredPeripheral = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
+              let peripheral = restoredPeripheral.first else { return }
+
+        treadmill = peripheral
+        peripheral.delegate = self
+        if central.state == .poweredOn {
+            peripheral.discoverServices([ftmsServiceUUID])
+        }
+    }
+
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         stopScan()
 

@@ -15,7 +15,7 @@ struct DiscoveredTreadmill: Identifiable, Equatable {
 }
 
 struct FTMSConnectionPresentation: Equatable {
-    var statusMessage = "Looking for threadmills"
+    var statusMessage = "Looking for treadmills"
     var isLoading = false
     var isScanning = false
     var isConnecting = false
@@ -32,7 +32,7 @@ struct FTMSConnectionPresentation: Equatable {
         isConnecting = false
         isConnected = false
         connectedDeviceName = nil
-        statusMessage = "Looking for threadmills"
+        statusMessage = "Looking for treadmills"
     }
 
     mutating func addOrUpdateDiscoveredTreadmill(id: UUID, name: String, rssi: Int) {
@@ -122,7 +122,7 @@ struct FTMSConnectionPresentation: Equatable {
         case .resetting:
             return "Bluetooth is resetting. Please wait a moment."
         default:
-            return "Looking for threadmills"
+            return "Looking for treadmills"
         }
     }
 }

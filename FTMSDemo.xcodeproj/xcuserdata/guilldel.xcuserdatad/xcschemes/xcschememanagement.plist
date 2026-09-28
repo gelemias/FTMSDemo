@@ -9,6 +9,29 @@
 			<key>orderHint</key>
 			<integer>0</integer>
 		</dict>
+		<key>FTMSDemoWidgets.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>CE30D53C2EC88CC40018C01F</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>CE30D5652EC88CC40018C01F</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>CEF406122F98B31B0095AFAC</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
 	</dict>
 </dict>
 </plist>
