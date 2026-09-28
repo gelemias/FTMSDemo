@@ -8,23 +8,7 @@
 import SwiftUI
 import UIKit
 
-private enum MetricID: String, CaseIterable, Codable, Identifiable {
-    case distance
-    case pace
-    case speed
-    case incline
-    case cadence
-    case heartRate
-
-    var id: String { rawValue }
-}
-
-private struct MetricPreference: Identifiable, Codable, Equatable {
-    let id: MetricID
-    var isVisible: Bool
-}
-
-private enum WorkoutTheme {
+enum WorkoutTheme {
     static let ink = adaptive(light: (0.851, 0.839, 0.816), dark: (0.200, 0.200, 0.200)) // #D9D6D0 / #333333
     static let panel = adaptive(light: (0.925, 0.918, 0.89), dark: (0.149, 0.149, 0.149))
     static let panelRaised = adaptive(light: (0.616, 0.651, 0.596), dark: (0.340, 0.360, 0.330)) // #9DA698 / #575C54
@@ -107,7 +91,7 @@ private struct NoiseTexture: View {
     }
 }
 
-private extension View {
+extension View {
     func panelNoise(cornerRadius: CGFloat, enabled: Bool = true) -> some View {
         overlay {
             if enabled {
@@ -127,26 +111,18 @@ private struct TrainingPlanRowFramePreferenceKey: PreferenceKey {
 }
 
 struct ContentView: View {
-    @StateObject private var ftms = FTMSManager()
+    @StateObject private var connectionViewModel = ConnectionViewModel()
+    @StateObject private var workoutViewModel = WorkoutViewModel()
+    @StateObject private var trainingPlanViewModel = TrainingPlanViewModel()
     @StateObject private var trainingPlanRunner = TrainingPlanRunner()
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("metric_preferences_json") private var metricPreferencesStorage = ""
-    @AppStorage("training_plan_blocks_json") private var trainingPlanStorage = ""
-    @AppStorage("saved_training_plans_json") private var savedTrainingPlansStorage = ""
-    @AppStorage("training_plan_steps_json") private var legacyTrainingPlanStorage = ""
-    @State private var targetSpeedKmh = 10.0
-    @State private var customSpeedOne = 8.0
-    @State private var customSpeedTwo = 13.0
-    @State private var isWorkoutRunning = false
+    private let preferencesStore = WorkoutPreferencesStore()
     @State private var showCustomSpeedAlert = false
     @State private var editingCustomSlot = 1
     @State private var customSpeedInput = ""
-    @State private var metricPreferences: [MetricPreference] = Self.defaultMetricPreferences()
+    @State private var metricPreferences: [MetricPreference] = WorkoutPreferencesStore.defaultMetricPreferences
     @State private var showMetricCustomization = false
     @State private var didLoadMetricPreferences = false
-    @State private var trainingPlanBlocks = TrainingPlan.todayBlocks
-    @State private var trainingPlanName = "Speed builder"
-    @State private var savedTrainingPlans: [TrainingPlanTemplate] = []
     @State private var showingSavedPlans = false
     @State private var editingBlockID: UUID?
     @State private var draggedBlockID: UUID?
@@ -158,6 +134,35 @@ struct ContentView: View {
     @State private var trainingFlowDetent: PresentationDetent = .height(132)
     @State private var statusToastMessage: String?
     @State private var statusToastID = UUID()
+
+    private var ftms: ConnectionViewModel { connectionViewModel }
+    private var targetSpeedKmh: Double {
+        get { workoutViewModel.targetSpeedKmh }
+        set { workoutViewModel.targetSpeedKmh = newValue }
+    }
+    private var customSpeedOne: Double {
+        get { workoutViewModel.customSpeedOne }
+        set { workoutViewModel.customSpeedOne = newValue }
+    }
+    private var customSpeedTwo: Double {
+        get { workoutViewModel.customSpeedTwo }
+        set { workoutViewModel.customSpeedTwo = newValue }
+    }
+    private var isWorkoutRunning: Bool {
+        get { workoutViewModel.isWorkoutRunning }
+        set { workoutViewModel.isWorkoutRunning = newValue }
+    }
+    private var trainingPlanBlocks: [TrainingPlanBlock] {
+        get { trainingPlanViewModel.blocks }
+        set { trainingPlanViewModel.blocks = newValue }
+    }
+    private var trainingPlanName: String {
+        get { trainingPlanViewModel.name }
+        set { trainingPlanViewModel.name = newValue }
+    }
+    private var savedTrainingPlans: [TrainingPlanTemplate] {
+        trainingPlanViewModel.savedPlans
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -175,7 +180,7 @@ struct ContentView: View {
                 .onChange(of: ftms.isConnected) { _, isConnected in
                     guard !isConnected else { return }
                     trainingPlanRunner.stop()
-                    isWorkoutRunning = false
+                workoutViewModel.isWorkoutRunning = false
                     trainingPlanStartedAt = nil
                 }
                 .navigationBarTitleDisplayMode(.inline)
@@ -193,7 +198,7 @@ struct ContentView: View {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
                                 ftms.disconnect()
-                                isWorkoutRunning = false
+                workoutViewModel.isWorkoutRunning = false
                             } label: {
                                 Label("Disconnect", systemImage: "bolt.slash")
                             }
@@ -238,101 +243,7 @@ struct ContentView: View {
     }
 
     private var disconnectedWorkspace: some View {
-        connectionPrelude
-    }
-
-    private var connectionPrelude: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("READY TO WORK?")
-                        .font(.system(size: 34, weight: .black).italic())
-                        .foregroundStyle(WorkoutTheme.orange)
-
-                    Text("Connect your treadmill. Keep your eyes on the belt, not the screen.")
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(WorkoutTheme.paper)
-                }
-
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text("NEARBY MACHINES")
-                            .font(.caption.weight(.black))
-                            .tracking(1.2)
-                            .foregroundStyle(WorkoutTheme.muted)
-                        Spacer()
-                        if ftms.isScanning {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                    }
-
-                    if ftms.discoveredTreadmills.isEmpty {
-                        emptyState
-                    } else {
-                        VStack(spacing: 12) {
-                            ForEach(ftms.discoveredTreadmills) { treadmill in
-                                Button {
-                                    ftms.connect(to: treadmill.id)
-                                } label: {
-                                    HStack(spacing: 14) {
-                                        Image(systemName: "figure.run")
-                                            .font(.title3)
-                                            .foregroundStyle(WorkoutTheme.controlAccent)
-                                            .frame(width: 36, height: 36)
-                                            .background(WorkoutTheme.controlAccent.opacity(0.12))
-                                            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(treadmill.name)
-                                                .font(.headline)
-                                                .foregroundStyle(.primary)
-                                            Text("Signal \(treadmill.rssi) dBm")
-                                                .font(.subheadline)
-                                                .foregroundStyle(.secondary)
-                                        }
-
-                                        Spacer()
-
-                                        if ftms.selectedTreadmillID == treadmill.id && ftms.isConnecting {
-                                            ProgressView()
-                                        } else {
-                                            Image(systemName: "chevron.right")
-                                                .foregroundStyle(.tertiary)
-                                        }
-                                    }
-                                    .padding()
-                                    .background(WorkoutTheme.panel)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                                    .panelNoise(cornerRadius: 14)
-                                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(WorkoutTheme.paper.opacity(0.08)))
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(ftms.isConnecting)
-                            }
-                        }
-                    }
-                }
-
-                Button {
-                    guard !ftms.isScanning && !ftms.isConnecting else { return }
-                    ftms.startScan()
-                } label: {
-                    Label(ftms.isScanning ? "Scanning..." : "Search Again", systemImage: "arrow.clockwise")
-                        .font(.headline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(WorkoutTheme.orange)
-                .foregroundStyle(WorkoutTheme.primaryButtonForeground)
-                .controlSize(.large)
-                .opacity(ftms.isScanning || ftms.isConnecting ? 0.55 : 1)
-            }
-            .padding()
-        }
-        .scrollContentBackground(.hidden)
-        .safeAreaPadding(.bottom, 144)
-        .navigationTitle("FTMS")
+        ConnectionView(viewModel: ftms)
     }
 
     private var connectedDashboard: some View {
@@ -350,122 +261,28 @@ struct ContentView: View {
     }
 
     private var controlDashboard: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                workoutStatusStrip
-                primaryMetricCard
-                VStack(spacing: 16) {
-                    HStack {
-                        Text("SET PACE")
-                            .font(.caption.weight(.black))
-                            .tracking(1.2)
-                            .foregroundStyle(WorkoutTheme.muted)
-                        Spacer()
-                        Button {
-                            showMetricCustomization = true
-                        } label: {
-                            Label("Metrics", systemImage: "slider.horizontal.3")
-                                .font(.caption.weight(.bold))
-                        }
-                        .tint(WorkoutTheme.muted)
-                    }
-
-                    HStack(spacing: 16) {
-                        Button {
-                            adjustSpeed(by: -0.1)
-                        } label: {
-                            Image(systemName: "minus")
-                                .font(.title.weight(.black))
-                                .frame(width: 76, height: 76)
-                                .background(WorkoutTheme.panelRaised)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .panelNoise(cornerRadius: 14)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!ftms.controlPointReady)
-
-                        VStack(spacing: 2) {
-                            Text(String(format: "%.1f", targetSpeedKmh))
-                                .font(.system(size: 44, weight: .black, design: .rounded))
-                                .monospacedDigit()
-                            Text("KM/H")
-                                .font(.caption.weight(.black))
-                                .tracking(1.5)
-                                .foregroundStyle(WorkoutTheme.controlAccent)
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        Button {
-                            adjustSpeed(by: 0.1)
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.title.weight(.black))
-                                .frame(width: 76, height: 76)
-                                .background(WorkoutTheme.panelRaised)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .panelNoise(cornerRadius: 14)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!ftms.controlPointReady)
-                    }
-
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        ForEach([10.0, 12.0, 14.0, 16.0], id: \.self) { quickSpeed in
-                            Button {
-                                setTargetSpeed(quickSpeed)
-                            } label: {
-                                Text(String(format: "%.0f km/h", quickSpeed))
-                                    .font(.headline.weight(.black))
-                                    .frame(maxWidth: .infinity)
-                                    .frame(minHeight: 64)
-                                    .background(targetSpeedKmh == quickSpeed ? WorkoutTheme.controlAccent : WorkoutTheme.panelRaised)
-                                    .foregroundStyle(targetSpeedKmh == quickSpeed ? WorkoutTheme.ink : WorkoutTheme.paper)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .panelNoise(cornerRadius: 12, enabled: targetSpeedKmh != quickSpeed)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(!ftms.controlPointReady)
-                        }
-                        customShortcutTile(speed: customSpeedOne, slot: 1)
-                        customShortcutTile(speed: customSpeedTwo, slot: 2)
-                    }
-                }
-                .padding()
-                .background(WorkoutTheme.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .panelNoise(cornerRadius: 16)
-
-                Button {
-                    toggleWorkoutState()
-                } label: {
-                    Label(isWorkoutRunning ? "STOP WORKOUT" : "START WORKOUT", systemImage: isWorkoutRunning ? "stop.fill" : "play.fill")
-                        .font(.headline.weight(.black))
-                        .tracking(0.8)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 68)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(WorkoutTheme.controlAccent)
-                .foregroundStyle(WorkoutTheme.ink)
-                .controlSize(.large)
-                .disabled(!ftms.controlPointReady)
-
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-        }
-        .scrollContentBackground(.hidden)
-        .safeAreaPadding(.bottom, 144)
-        .navigationTitle("CONTROL")
+        WorkoutView(
+            connection: connectionViewModel,
+            isWorkoutRunning: $workoutViewModel.isWorkoutRunning,
+            targetSpeedKmh: $workoutViewModel.targetSpeedKmh,
+            customSpeedOne: $workoutViewModel.customSpeedOne,
+            customSpeedTwo: $workoutViewModel.customSpeedTwo,
+            metricPreferences: $metricPreferences,
+            onAdjustSpeed: adjustSpeed,
+            onSetTargetSpeed: setTargetSpeed,
+            onEditCustomSpeed: openEditCustomSpeed,
+            onShowMetrics: { showMetricCustomization = true },
+            onToggleWorkout: toggleWorkoutState
+        )
         .onChange(of: ftms.treadmillData.speedKmh) { _, newValue in
             guard let newValue else { return }
             if abs(newValue - targetSpeedKmh) > 0.2 {
-                targetSpeedKmh = (newValue * 10).rounded() / 10
+                workoutViewModel.targetSpeedKmh = (newValue * 10).rounded() / 10
             }
         }
         .onChange(of: ftms.isConnected) { _, isConnected in
             if !isConnected {
-                isWorkoutRunning = false
+                    workoutViewModel.isWorkoutRunning = false
                 trainingPlanStartedAt = nil
                 trainingPlanRunner.stop()
             }
@@ -496,105 +313,11 @@ struct ContentView: View {
             Text("Enter a number between 0.1 and 22.0 km/h.")
         }
         .sheet(isPresented: $showMetricCustomization) {
-            metricCustomizationSheet
-        }
-    }
-
-    private var workoutStatusStrip: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(WorkoutTheme.controlAccent)
-                .frame(width: 12, height: 12)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(isWorkoutRunning ? "WORKOUT LIVE" : "MACHINE READY")
-                    .font(.caption.weight(.black))
-                    .tracking(1.1)
-                Text(ftms.connectedDeviceName ?? "Treadmill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(WorkoutTheme.muted)
-            }
-            Spacer()
-            if ftms.isLoading { ProgressView().tint(WorkoutTheme.controlAccent) }
-        }
-        .padding(.horizontal, 4)
-    }
-
-    private var primaryMetricCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("CURRENT SPEED")
-                        .font(.caption.weight(.black))
-                        .tracking(1.2)
-                        .foregroundStyle(WorkoutTheme.muted)
-                    Text(String(format: "%.1f", ftms.treadmillData.speedKmh ?? 0))
-                        .font(.system(size: 58, weight: .black, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(WorkoutTheme.paper)
-                    Text("KM/H")
-                        .font(.caption.weight(.black))
-                        .tracking(1.5)
-                        .foregroundStyle(WorkoutTheme.controlAccent)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text(String(format: "%.1f", ftms.treadmillData.distanceKilometers))
-                        .font(.title2.weight(.black))
-                        .monospacedDigit()
-                    Text("KM DISTANCE")
-                        .font(.caption2.weight(.black))
-                        .tracking(0.8)
-                        .foregroundStyle(WorkoutTheme.muted)
-                }
-            }
-
-            Divider().overlay(WorkoutTheme.paper.opacity(0.12))
-
-            HStack(spacing: 0) {
-                compactMetric(label: "PACE", value: ftms.treadmillData.paceMinPerKm.map { String(format: "%.1f", $0) } ?? "--", unit: "MIN/KM")
-                compactMetric(label: "INCLINE", value: ftms.treadmillData.incline.map { String(format: "%.1f", $0) } ?? "--", unit: "%")
-                compactMetric(label: "HEART", value: ftms.treadmillData.heartRate.map { String($0) } ?? "--", unit: "BPM")
-            }
-
-            let additionalMetrics = visibleMetricPreferences.filter { ![.speed, .distance, .pace, .incline, .heartRate].contains($0.id) }
-            if !additionalMetrics.isEmpty {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ForEach(additionalMetrics) { preference in
-                        metricChip(for: preference.id)
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(WorkoutTheme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WorkoutTheme.paper.opacity(0.08)))
-        .panelNoise(cornerRadius: 16)
-    }
-
-    private func compactMetric(label: String, value: String, unit: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .font(.caption2.weight(.black))
-                .tracking(0.8)
-                .foregroundStyle(WorkoutTheme.muted)
-            Text(value)
-                .font(.headline.weight(.black))
-                .monospacedDigit()
-            Text(unit)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(WorkoutTheme.muted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func metricChip(for metricID: MetricID) -> some View {
-        switch metricID {
-        case .cadence:
-            compactMetric(label: "CADENCE", value: ftms.treadmillData.cadenceSpm.map { String($0) } ?? "--", unit: "SPM")
-        case .distance, .pace, .speed, .incline, .heartRate:
-            EmptyView()
+            MetricCustomizationView(
+                preferences: $metricPreferences,
+                onMove: moveMetric,
+                onDone: { showMetricCustomization = false }
+            )
         }
     }
 
@@ -643,13 +366,13 @@ struct ContentView: View {
     }
 
     private func setTargetSpeed(_ speed: Double) {
-        let normalized = max(0.0, min(22.0, (speed * 10).rounded() / 10))
-        targetSpeedKmh = normalized
+        let normalized = workoutViewModel.setTargetSpeed(speed)
         ftms.sendTargetSpeed(kmh: normalized)
     }
 
     private func adjustSpeed(by delta: Double) {
-        setTargetSpeed(targetSpeedKmh + delta)
+        let normalized = workoutViewModel.adjustSpeed(by: delta)
+        ftms.sendTargetSpeed(kmh: normalized)
     }
 
     private func toggleWorkoutState() {
@@ -658,11 +381,11 @@ struct ContentView: View {
                 stopTrainingPlan()
             } else {
                 ftms.stopTreadmill()
-                isWorkoutRunning = false
+                                workoutViewModel.isWorkoutRunning = false
             }
         } else {
             ftms.startTreadmill()
-            isWorkoutRunning = true
+            workoutViewModel.isWorkoutRunning = true
         }
     }
 
@@ -677,12 +400,12 @@ struct ContentView: View {
             startTreadmill: { ftms.startTreadmill() },
             stopTreadmill: { ftms.stopTreadmill() }
         )
-        isWorkoutRunning = true
+        workoutViewModel.isWorkoutRunning = true
     }
 
     private func stopTrainingPlan() {
         trainingPlanRunner.stop()
-        isWorkoutRunning = false
+        workoutViewModel.isWorkoutRunning = false
         trainingPlanStartedAt = nil
     }
 
@@ -701,7 +424,7 @@ struct ContentView: View {
                         Label("Training plan", systemImage: "figure.run.circle.fill")
                             .font(.headline)
                         if trainingPlanStartedAt == nil {
-                            TextField("Workout name", text: $trainingPlanName)
+                            TextField("Workout name", text: $trainingPlanViewModel.name)
                                 .font(.title3.weight(.bold))
                                 .textFieldStyle(.plain)
                         } else {
@@ -777,7 +500,7 @@ struct ContentView: View {
                 if trainingPlanStartedAt == nil {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 10) {
-                    ForEach($trainingPlanBlocks) { $block in
+                    ForEach($trainingPlanViewModel.blocks) { $block in
                         trainingPlanBlockRow(block: $block)
                     }
                     }
@@ -830,7 +553,7 @@ struct ContentView: View {
                 editingBlockID = value?.id
             })) { block in
                 if let index = trainingPlanBlocks.firstIndex(where: { $0.id == block.id }) {
-                    trainingPlanEditSheet(block: $trainingPlanBlocks[index])
+                    trainingPlanEditSheet(block: $trainingPlanViewModel.blocks[index])
                 }
             }
         }
@@ -887,7 +610,7 @@ struct ContentView: View {
         ZStack(alignment: .trailing) {
             if swipedBlockID == blockID {
                 Button(role: .destructive) {
-                    trainingPlanBlocks.removeAll { $0.id == blockID }
+                    trainingPlanViewModel.blocks.removeAll { $0.id == blockID }
                     swipedBlockID = nil
                 } label: {
                     Image(systemName: "trash")
@@ -983,7 +706,7 @@ struct ContentView: View {
         guard destination != fromIndex else { return }
 
         withAnimation(.snappy(duration: 0.22)) {
-            trainingPlanBlocks.move(
+            trainingPlanViewModel.blocks.move(
                 fromOffsets: IndexSet(integer: fromIndex),
                 toOffset: destination
             )
@@ -1025,11 +748,11 @@ struct ContentView: View {
             recoveryDurationSeconds: kind == .intervalGroup ? 60 : 0,
             recoverySpeedKmh: kind == .intervalGroup ? 9 : 0
         )
-        trainingPlanBlocks.insert(block, at: max(0, trainingPlanBlocks.count - 1))
+        trainingPlanViewModel.blocks.insert(block, at: max(0, trainingPlanViewModel.blocks.count - 1))
     }
 
     private func moveTrainingPlanBlocks(from source: IndexSet, to destination: Int) {
-        trainingPlanBlocks.move(fromOffsets: source, toOffset: destination)
+        trainingPlanViewModel.blocks.move(fromOffsets: source, toOffset: destination)
     }
 
     private func trainingPlanEditSheet(block: Binding<TrainingPlanBlock>) -> some View {
@@ -1082,8 +805,8 @@ struct ContentView: View {
                 } else {
                     ForEach(savedTrainingPlans) { plan in
                         Button {
-                            trainingPlanName = plan.name
-                            trainingPlanBlocks = plan.blocks
+                            trainingPlanViewModel.name = plan.name
+                            trainingPlanViewModel.blocks = plan.blocks
                             showingSavedPlans = false
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
@@ -1105,63 +828,44 @@ struct ContentView: View {
 
     private func saveNamedTrainingPlan() {
         let name = trainingPlanName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Training plan" : trainingPlanName
-        trainingPlanName = name
-        savedTrainingPlans.removeAll { $0.name.caseInsensitiveCompare(name) == .orderedSame }
-        savedTrainingPlans.insert(TrainingPlanTemplate(name: name, blocks: trainingPlanBlocks), at: 0)
-        persistSavedTrainingPlans()
+        trainingPlanViewModel.name = name
+        trainingPlanViewModel.saveNamedPlan()
     }
 
     private func deleteSavedPlan(_ plan: TrainingPlanTemplate) {
-        savedTrainingPlans.removeAll { $0.id == plan.id }
-        persistSavedTrainingPlans()
-    }
-
-    private func persistSavedTrainingPlans() {
-        guard let data = try? JSONEncoder().encode(savedTrainingPlans), let json = String(data: data, encoding: .utf8) else { return }
-        savedTrainingPlansStorage = json
+        trainingPlanViewModel.deletePlan(plan)
     }
 
     private func currentTrainingStep(for elapsed: TimeInterval) -> TrainingPlanStep? {
-        guard trainingPlanStartedAt != nil else { return trainingPlanSteps.first }
-        var consumed: TimeInterval = 0
-        for step in trainingPlanSteps {
-            consumed += step.durationSeconds
-            if elapsed < consumed { return step }
-        }
-        return nil
+        TrainingPlanCalculator.currentStep(
+            in: trainingPlanBlocks,
+            elapsed: elapsed,
+            isRunning: trainingPlanStartedAt != nil
+        )
     }
 
     private var trainingPlanSteps: [TrainingPlanStep] {
-        trainingPlanBlocks.flatMap { $0.expandedSteps() }
+        TrainingPlanCalculator.steps(from: trainingPlanBlocks)
     }
 
     private var trainingPlanDuration: TimeInterval {
-        trainingPlanBlocks.reduce(0) { $0 + $1.totalDuration }
+        TrainingPlanCalculator.duration(of: trainingPlanBlocks)
     }
 
     private var intervalCount: Int {
-        trainingPlanBlocks.filter { $0.kind == .intervalGroup }.reduce(0) { $0 + max(1, $1.repetitions) }
+        TrainingPlanCalculator.intervalCount(in: trainingPlanBlocks)
     }
 
     private func durationSummary(_ seconds: TimeInterval) -> String {
-        let wholeMinutes = Int(seconds) / 60
-        let remainder = Int(seconds) % 60
-        if remainder == 0 { return "\(wholeMinutes) min total" }
-        return String(format: "%d:%02d total", wholeMinutes, remainder)
+        TrainingPlanCalculator.durationSummary(seconds)
     }
 
     private func timeIntoCurrentStep(_ elapsed: TimeInterval) -> TimeInterval {
-        var consumed: TimeInterval = 0
-        for step in trainingPlanSteps {
-            if elapsed < consumed + step.durationSeconds { return elapsed - consumed }
-            consumed += step.durationSeconds
-        }
-        return 0
+        TrainingPlanCalculator.elapsedInCurrentStep(in: trainingPlanBlocks, elapsed: elapsed)
     }
 
     private func timeLabel(for seconds: TimeInterval) -> String {
-        let totalSeconds = max(0, Int(seconds.rounded()))
-        return String(format: "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
+        TrainingPlanCalculator.timeLabel(seconds)
     }
 
     private func speedLabel(_ speed: Double) -> String {
@@ -1172,41 +876,11 @@ struct ContentView: View {
         guard !didLoadTrainingPlan else { return }
         didLoadTrainingPlan = true
 
-        if let data = savedTrainingPlansStorage.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([TrainingPlanTemplate].self, from: data) {
-            savedTrainingPlans = decoded
-        }
-
-        guard let data = trainingPlanStorage.data(using: .utf8),
-              let decoded = try? JSONDecoder().decode([TrainingPlanBlock].self, from: data),
-              !decoded.isEmpty else {
-            if let legacyData = legacyTrainingPlanStorage.data(using: .utf8),
-               let legacySteps = try? JSONDecoder().decode([TrainingPlanStep].self, from: legacyData),
-               !legacySteps.isEmpty {
-                trainingPlanBlocks = legacySteps.enumerated().map { index, step in
-                    TrainingPlanBlock(
-                        kind: index == 0 ? .warmUp : (index == legacySteps.count - 1 ? .coolDown : .intervalGroup),
-                        durationSeconds: step.durationSeconds,
-                        targetSpeedKmh: step.targetSpeedKmh,
-                        repetitions: 1,
-                        recoveryDurationSeconds: 0,
-                        recoverySpeedKmh: step.targetSpeedKmh
-                    )
-                }
-                saveTrainingPlan()
-                return
-            }
-            trainingPlanBlocks = TrainingPlan.todayBlocks
-            return
-        }
-
-        trainingPlanBlocks = decoded
+        trainingPlanViewModel.loadIfNeeded()
     }
 
     private func saveTrainingPlan() {
-        guard let data = try? JSONEncoder().encode(trainingPlanBlocks),
-              let json = String(data: data, encoding: .utf8) else { return }
-        trainingPlanStorage = json
+        trainingPlanViewModel.saveBlocks()
     }
 
     private func paceForSpeed(_ speedKmh: Double) -> Double {
@@ -1230,34 +904,6 @@ struct ContentView: View {
         return value >= 0.1 && value <= 22.0
     }
 
-    private func customShortcutTile(speed: Double, slot: Int) -> some View {
-        HStack(spacing: 8) {
-            Button {
-                setTargetSpeed(speed)
-            } label: {
-                Text(String(format: "%.1f km/h", speed))
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 72)
-                    .foregroundStyle(targetSpeedKmh == speed ? WorkoutTheme.ink : WorkoutTheme.paper)
-            }
-            .buttonStyle(.plain)
-            .disabled(!ftms.controlPointReady)
-
-            Button {
-                openEditCustomSpeed(slot: slot)
-            } label: {
-                Image(systemName: "pencil")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(width: 32, height: 32)
-            }
-            .buttonStyle(.plain)
-        }
-        .background(targetSpeedKmh == speed ? WorkoutTheme.controlAccent : WorkoutTheme.panelRaised)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .panelNoise(cornerRadius: 12, enabled: targetSpeedKmh != speed)
-    }
-
     private func openEditCustomSpeed(slot: Int) {
         editingCustomSlot = slot
         let currentValue = slot == 1 ? customSpeedOne : customSpeedTwo
@@ -1266,123 +912,22 @@ struct ContentView: View {
     }
 
     private func saveCustomSpeed() {
-        guard let newValue = Double(customSpeedInput), isCustomSpeedInputValid else { return }
-        let normalized = max(0.1, min(22.0, (newValue * 10).rounded() / 10))
-        if editingCustomSlot == 1 {
-            customSpeedOne = normalized
-        } else {
-            customSpeedTwo = normalized
-        }
+        guard isCustomSpeedInputValid else { return }
+        _ = workoutViewModel.saveCustomSpeed(customSpeedInput, slot: editingCustomSlot)
     }
 
     private func sanitizeNumericInput(_ input: String) -> String {
-        let normalized = input.replacingOccurrences(of: ",", with: ".")
-        var result = ""
-        var hasDecimalSeparator = false
-        for character in normalized {
-            if character.isNumber {
-                result.append(character)
-            } else if character == ".", !hasDecimalSeparator {
-                hasDecimalSeparator = true
-                result.append(character)
-            }
-        }
-        return result
-    }
-    
-    @ViewBuilder
-    private func metricRow(for metricID: MetricID) -> some View {
-        switch metricID {
-        case .distance:
-            DataRow(label: "Distance", value: ftms.treadmillData.distanceKilometers, unit: "km")
-        case .pace:
-            DataRow(label: "Pace", value: ftms.treadmillData.paceMinPerKm, unit: "min/km")
-        case .speed:
-            DataRow(label: "Speed", value: ftms.treadmillData.speedKmh, unit: "km/h")
-        case .incline:
-            DataRow(label: "Incline", value: ftms.treadmillData.incline, unit: "%")
-        case .cadence:
-            DataRow(label: "Cadence (est.)", value: ftms.treadmillData.cadenceSpm, unit: "spm")
-        case .heartRate:
-            DataRow(label: "Heart Rate", value: ftms.treadmillData.heartRate, unit: "bpm")
-        }
-    }
-    
-    private var metricCustomizationSheet: some View {
-        NavigationStack {
-            List {
-                ForEach($metricPreferences) { $preference in
-                    HStack {
-                        Text(metricTitle(preference.id))
-                        Spacer()
-                        Toggle("Visible", isOn: $preference.isVisible)
-                            .labelsHidden()
-                    }
-                }
-                .onMove(perform: moveMetric)
-            }
-            .navigationTitle("Customize Metrics")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    EditButton()
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        showMetricCustomization = false
-                    }
-                }
-            }
-        }
-    }
-    
-    private func metricTitle(_ id: MetricID) -> String {
-        switch id {
-        case .distance: return "Distance"
-        case .pace: return "Pace"
-        case .speed: return "Speed"
-        case .incline: return "Incline"
-        case .cadence: return "Cadence"
-        case .heartRate: return "Heart Rate"
-        }
-    }
-
-    private static func defaultMetricPreferences() -> [MetricPreference] {
-        MetricID.allCases.map { MetricPreference(id: $0, isVisible: true) }
+        WorkoutInputSanitizer.numericText(input)
     }
     
     private func loadMetricPreferencesIfNeeded() {
         guard !didLoadMetricPreferences else { return }
         didLoadMetricPreferences = true
-
-        guard let data = metricPreferencesStorage.data(using: .utf8),
-              let decoded = try? JSONDecoder().decode([MetricPreference].self, from: data) else {
-            metricPreferences = Self.defaultMetricPreferences()
-            return
-        }
-        
-        metricPreferences = normalizedMetricPreferences(decoded)
-    }
-    
-    private func normalizedMetricPreferences(_ preferences: [MetricPreference]) -> [MetricPreference] {
-        var seen = Set<MetricID>()
-        var normalized: [MetricPreference] = []
-        
-        for preference in preferences where !seen.contains(preference.id) {
-            normalized.append(preference)
-            seen.insert(preference.id)
-        }
-        
-        for metric in MetricID.allCases where !seen.contains(metric) {
-            normalized.append(MetricPreference(id: metric, isVisible: true))
-        }
-        
-        return normalized
+        metricPreferences = preferencesStore.loadMetricPreferences()
     }
     
     private func saveMetricPreferences() {
-        guard let data = try? JSONEncoder().encode(metricPreferences),
-              let json = String(data: data, encoding: .utf8) else { return }
-        metricPreferencesStorage = json
+        preferencesStore.saveMetricPreferences(metricPreferences)
     }
     
     private func moveMetric(from source: IndexSet, to destination: Int) {
@@ -1438,21 +983,6 @@ struct ContentView: View {
         .panelNoise(cornerRadius: 20)
         .overlay(Capsule().stroke(WorkoutTheme.paper.opacity(0.12)))
         .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
-    }
-
-    private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("No treadmills found yet")
-                .font(.headline)
-            Text("Make sure the treadmill is powered on and advertising over Bluetooth, then keep this screen open for a few seconds.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(WorkoutTheme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .panelNoise(cornerRadius: 18)
     }
 
     private var statusIconName: String {

@@ -42,6 +42,7 @@ class FTMSManager: NSObject, ObservableObject {
 
     private var treadmillDataCharacteristic: CBCharacteristic?
     private var controlPointCharacteristic: CBCharacteristic?
+    private let dataParser = FTMSDataParser()
 
     var controlPointReady: Bool {
         controlPointCharacteristic != nil && treadmill != nil && isConnected
@@ -112,125 +113,10 @@ class FTMSManager: NSObject, ObservableObject {
     }
 
     func parseTreadmillData(_ data: Data) {
-        var cursor = 0
-        
-        func canRead(_ count: Int) -> Bool {
-            cursor + count <= data.count
-        }
-        
-        func readUInt8() -> UInt8? {
-            guard canRead(1) else { return nil }
-            defer { cursor += 1 }
-            return data[cursor]
-        }
-        
-        func readUInt16() -> UInt16? {
-            guard canRead(2) else { return nil }
-            defer { cursor += 2 }
-            let low = UInt16(data[cursor])
-            let high = UInt16(data[cursor + 1]) << 8
-            return low | high
-        }
-        
-        func readUInt24() -> UInt32? {
-            guard canRead(3) else { return nil }
-            let b0 = UInt32(data[cursor])
-            let b1 = UInt32(data[cursor + 1]) << 8
-            let b2 = UInt32(data[cursor + 2]) << 16
-            cursor += 3
-            return b0 | b1 | b2
-        }
-        
-        @discardableResult
-        func skip(_ count: Int) -> Bool {
-            guard canRead(count) else { return false }
-            cursor += count
-            return true
-        }
-        
-        guard let flags = readUInt16() else { return }
-        
-        // FTMS treadmill data: instantaneous speed is always present directly after flags.
-        guard let rawSpeed = readUInt16() else { return }
-        
-        let avgSpeedPresent = (flags & (1 << 1)) != 0
-        let totalDistancePresent = (flags & (1 << 2)) != 0
-        let inclinePresent = (flags & (1 << 3)) != 0
-        let elevationGainPresent = (flags & (1 << 4)) != 0
-        let instantPacePresent = (flags & (1 << 5)) != 0
-        let averagePacePresent = (flags & (1 << 6)) != 0
-        let expendedEnergyPresent = (flags & (1 << 7)) != 0
-        let heartRatePresent = (flags & (1 << 8)) != 0
-        let metabolicEquivalentPresent = (flags & (1 << 9)) != 0
-        let elapsedTimePresent = (flags & (1 << 10)) != 0
-        let remainingTimePresent = (flags & (1 << 11)) != 0
-        let forceOnBeltPresent = (flags & (1 << 12)) != 0
-        
-        var new = TreadmillData()
-        new.speedKmh = Double(rawSpeed) / 100.0
-        
-        if avgSpeedPresent {
-            _ = skip(2)
-        }
-        
-        if totalDistancePresent, let rawDistance = readUInt24() {
-            new.distanceMeters = Double(rawDistance)
-        }
-        
-        if inclinePresent {
-            if let rawIncline = readUInt16() {
-                new.incline = Double(Int16(bitPattern: rawIncline)) / 10.0
-            }
-            _ = skip(2) // Ramp angle
-        }
-        
-        if elevationGainPresent {
-            _ = skip(4) // Positive and negative elevation gain
-        }
-        
-        if instantPacePresent, let rawPace = readUInt16() {
-            new.paceMinPerKm = Double(rawPace) / 10.0
-        }
-        
-        if averagePacePresent {
-            _ = skip(2)
-        }
-        
-        if expendedEnergyPresent {
-            _ = skip(5) // Total, per hour, per minute
-        }
-        
-        if heartRatePresent, let hr = readUInt8() {
-            new.heartRate = Int(hr)
-        }
-        
-        if metabolicEquivalentPresent {
-            _ = skip(1)
-        }
-        
-        if elapsedTimePresent {
-            _ = skip(2)
-        }
-        
-        if remainingTimePresent {
-            _ = skip(2)
-        }
-        
-        if forceOnBeltPresent {
-            _ = skip(4)
-        }
-        
-        if new.paceMinPerKm == nil, let speed = new.speedKmh, speed > 0 {
-            new.paceMinPerKm = 60.0 / speed
-        }
-        
-        if let pace = new.paceMinPerKm, pace > 0 {
-            let metersPerMinute = 1000.0 / pace
-            new.cadenceSpm = Int((metersPerMinute / 1.0).rounded()) // Estimated using 1 m step length.
-        }
-        
+        guard let parsedData = dataParser.parse(data) else { return }
+
         DispatchQueue.main.async {
-            self.treadmillData = new
+            self.treadmillData = parsedData
         }
     }
 
@@ -289,14 +175,7 @@ extension FTMSManager {
             return
         }
 
-        let value = UInt16(kmh * 100)
-        let packet: [UInt8] = [
-            0x02,
-            UInt8(value & 0xFF),
-            UInt8((value >> 8) & 0xFF)
-        ]
-
-        treadmill?.writeValue(Data(packet), for: controlPointCharacteristic!, type: .withResponse)
+        treadmill?.writeValue(FTMSCommandEncoder.targetSpeed(kmh: kmh), for: controlPointCharacteristic!, type: .withResponse)
         statusMessage = "Target speed set to \(kmh) km/h."
     }
 
@@ -307,7 +186,7 @@ extension FTMSManager {
             return
         }
 
-        treadmill.writeValue(Data([opcode]), for: cp, type: .withResponse)
+        treadmill.writeValue(FTMSCommandEncoder.controlPoint(opcode: opcode), for: cp, type: .withResponse)
     }
 
     private func stopScan() {
