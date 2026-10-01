@@ -5,110 +5,10 @@
 //  Created by DELGADO Guillermo on 15/11/25.
 //
 
+import Foundation
+import Combine
 import SwiftUI
 import UIKit
-
-enum WorkoutTheme {
-    static let ink = adaptive(light: (0.851, 0.839, 0.816), dark: (0.200, 0.200, 0.200)) // #D9D6D0 / #333333
-    static let panel = adaptive(light: (0.925, 0.918, 0.89), dark: (0.149, 0.149, 0.149))
-    static let panelRaised = adaptive(light: (0.616, 0.651, 0.596), dark: (0.340, 0.360, 0.330)) // #9DA698 / #575C54
-    static let paper = adaptive(light: (0.149, 0.149, 0.149), dark: (0.851, 0.839, 0.816)) // #262626 / #D9D6D0
-    static let muted = adaptive(light: (0.380, 0.400, 0.365), dark: (0.616, 0.651, 0.596)) // #61665D / #9DA698
-    static let orange = Color(red: 1.0, green: 0.8, blue: 0.0) // #FCCD00
-    static let controlAccent = adaptive(light: (0.200, 0.200, 0.200), dark: (1.0, 0.8, 0.0)) // #333333 / #FCCD00
-    static let primaryButtonForeground = adaptive(light: (0.149, 0.149, 0.149), dark: (0.200, 0.200, 0.200)) // #262626 / #333333
-
-    private static func adaptive(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
-        Color(uiColor: UIColor { traits in
-            let values = traits.userInterfaceStyle == .dark ? dark : light
-            return UIColor(red: values.0, green: values.1, blue: values.2, alpha: 1)
-        })
-    }
-}
-
-private struct RubberFloorTexture: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Canvas { context, size in
-            let markColor = colorScheme == .dark ? Color.white.opacity(0.055) : Color.black.opacity(0.06)
-            let highlightColor = colorScheme == .dark ? Color.black.opacity(0.12) : Color.white.opacity(0.26)
-
-            for row in stride(from: 0.0, through: size.height + 16, by: 14) {
-                for column in stride(from: 0.0, through: size.width + 16, by: 14) {
-                    let offset = Int(row / 14).isMultiple(of: 2) ? 7.0 : 0.0
-                    let x = column + offset
-                    let y = row
-                    let dot = CGRect(x: x, y: y, width: 2.2, height: 2.2)
-                    context.fill(Path(ellipseIn: dot), with: .color(markColor))
-
-                    if Int((x + y) / 14).isMultiple(of: 5) {
-                        var seam = Path()
-                        seam.move(to: CGPoint(x: x + 4, y: y + 7))
-                        seam.addLine(to: CGPoint(x: x + 10, y: y + 10))
-                        context.stroke(seam, with: .color(highlightColor), lineWidth: 0.7)
-                    }
-                }
-            }
-        }
-        .drawingGroup()
-        .allowsHitTesting(false)
-    }
-}
-
-private struct NoiseTexture: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Canvas { context, size in
-            let lightGrain = colorScheme == .dark ? Color.white : Color.black
-            let darkGrain = colorScheme == .dark ? Color.black : Color.white
-
-            for row in stride(from: 0.0, through: size.height + 8, by: 8) {
-                for column in stride(from: 0.0, through: size.width + 8, by: 8) {
-                    let cellX = Int(column / 8)
-                    let cellY = Int(row / 8)
-                    var hash = UInt32(truncatingIfNeeded: cellX &* 374_761_393 &+ cellY &* 668_265_263)
-                    hash ^= hash >> 13
-                    hash &*= 1_274_126_177
-                    hash ^= hash >> 16
-
-                    let density = Double(hash % 1_000) / 1_000
-                    guard density > 0.30 else { continue }
-
-                    let jitterX = Double((hash >> 8) % 7)
-                    let jitterY = Double((hash >> 16) % 7)
-                    let size = density > 0.84 ? 1.45 : 1.0
-                    let dotColor = density > 0.68 ? lightGrain : darkGrain
-                    let opacity = density > 0.84 ? 0.070 : 0.035
-                    let dot = CGRect(x: column + jitterX, y: row + jitterY, width: size, height: size)
-                    context.fill(Path(ellipseIn: dot), with: .color(dotColor.opacity(opacity)))
-                }
-            }
-        }
-        .drawingGroup()
-        .allowsHitTesting(false)
-    }
-}
-
-extension View {
-    func panelNoise(cornerRadius: CGFloat, enabled: Bool = true) -> some View {
-        overlay {
-            if enabled {
-                NoiseTexture()
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            }
-        }
-    }
-}
-
-private struct TrainingPlanRowFramePreferenceKey: PreferenceKey {
-    static let defaultValue: [UUID: CGRect] = [:]
-
-    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
 
 struct ContentView: View {
     @StateObject private var connectionViewModel = ConnectionViewModel()
@@ -124,16 +24,19 @@ struct ContentView: View {
     @State private var showMetricCustomization = false
     @State private var didLoadMetricPreferences = false
     @State private var showingSavedPlans = false
+    @State private var duplicatePlan: TrainingPlanTemplate?
+    @State private var showingDuplicatePlanAlert = false
     @State private var editingBlockID: UUID?
+    @State private var pressedBlockID: UUID?
     @State private var draggedBlockID: UUID?
+    @State private var didMoveTrainingPlanBlock = false
     @State private var trainingPlanRowFrames: [UUID: CGRect] = [:]
     @State private var swipedBlockID: UUID?
     @State private var didLoadTrainingPlan = false
     @State private var trainingPlanStartedAt: Date?
     @State private var showTrainingFlow = true
-    @State private var trainingFlowDetent: PresentationDetent = .height(132)
-    @State private var statusToastMessage: String?
-    @State private var statusToastID = UUID()
+    @State private var trainingFlowDetent: PresentationDetent = .height(80)
+    @StateObject private var toastWindowManager = StatusToastWindowManager()
 
     private var ftms: ConnectionViewModel { connectionViewModel }
     private var targetSpeedKmh: Double {
@@ -168,6 +71,7 @@ struct ContentView: View {
         ZStack(alignment: .top) {
             WorkoutTheme.ink
                 .ignoresSafeArea()
+
             NavigationStack {
                 Group {
                     if ftms.isConnected {
@@ -208,7 +112,7 @@ struct ContentView: View {
                 }
                 .sheet(isPresented: $showTrainingFlow) {
                     trainingFlowSheet
-                        .presentationDetents([.height(132), .large], selection: $trainingFlowDetent)
+                        .presentationDetents([.height(80), .large], selection: $trainingFlowDetent)
                         .presentationDragIndicator(.visible)
                         .presentationBackground {
                             ZStack {
@@ -220,19 +124,16 @@ struct ContentView: View {
                         .interactiveDismissDisabled(true)
                 }
                 .tint(WorkoutTheme.controlAccent)
+                .background {
+                    ZStack {
+                        WorkoutTheme.ink
+                        RubberFloorTexture()
+                            .opacity(0.7)
+                    }
+                    .ignoresSafeArea()
+                }
             }
 
-            RubberFloorTexture()
-                .opacity(0.7)
-                .ignoresSafeArea()
-
-            if let statusToastMessage {
-                statusToast(message: statusToastMessage)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(1)
-            }
         }
         .onAppear {
             presentStatusToast(ftms.statusMessage)
@@ -323,15 +224,19 @@ struct ContentView: View {
 
     private var trainingPlanDashboard: some View {
         GeometryReader { viewport in
+            let isTrainingFlowMinimized = trainingFlowDetent == .height(80)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("BUILD THE WORK")
-                            .font(.system(size: 30, weight: .black).italic())
-                            .foregroundStyle(WorkoutTheme.orange)
-                        Text("Set speed, time, and repeats. Then follow the next move without thinking about the screen.")
-                            .font(.subheadline)
-                            .foregroundStyle(WorkoutTheme.muted)
+                    VStack(alignment: isTrainingFlowMinimized ? .center : .leading, spacing: 8) {
+                        Text("BUILD THE PLAN")
+                            .font(.system(size: isTrainingFlowMinimized ? 36 : 30, weight: .black).italic())
+                            .shadow(radius: 1.0, x: 1.0, y: 1.0)
+                            .foregroundStyle(WorkoutTheme.orange.gradient)
+                            .padding( .vertical, isTrainingFlowMinimized ? 16 : 0)
+                            Text("Set speed, time, and repeats. Then follow the next move without thinking about the screen.")
+                                .font(.subheadline)
+                                .foregroundStyle(WorkoutTheme.muted)
                     }
 
                     trainingPlanCard(maxEditorHeight: max(240, viewport.size.height - 250))
@@ -346,18 +251,25 @@ struct ContentView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(WorkoutTheme.orange)
+                        .tint(WorkoutTheme.orange.gradient)
                         .foregroundStyle(WorkoutTheme.primaryButtonForeground)
                         .controlSize(.large)
-                        .opacity(ftms.controlPointReady ? 1 : 0.55)
+                        .disabled(!ftms.controlPointReady)
                     }
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.vertical, isTrainingFlowMinimized ? 8 : 16)
             }
         }
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
-        .simultaneousGesture(TapGesture().onEnded { dismissKeyboard() })
+        .simultaneousGesture(TapGesture().onEnded {
+            dismissKeyboard()
+            guard trainingFlowDetent == .height(80) else { return }
+            withAnimation(.snappy) {
+                trainingFlowDetent = .large
+            }
+        })
         .navigationTitle("PLAN")
     }
 
@@ -396,9 +308,11 @@ struct ContentView: View {
             blocks: trainingPlanBlocks,
             workoutName: trainingPlanName,
             treadmillName: ftms.connectedDeviceName ?? "Treadmill",
-            sendSpeed: { speed in ftms.sendTargetSpeed(kmh: speed) },
-            startTreadmill: { ftms.startTreadmill() },
-            stopTreadmill: { ftms.stopTreadmill() }
+            actions: TrainingPlanRunnerActions(
+                sendSpeed: { speed in ftms.sendTargetSpeed(kmh: speed) },
+                startTreadmill: { ftms.startTreadmill() },
+                stopTreadmill: { ftms.stopTreadmill() }
+            )
         )
         workoutViewModel.isWorkoutRunning = true
     }
@@ -437,13 +351,22 @@ struct ContentView: View {
                     }
                     Spacer()
                     if trainingPlanStartedAt == nil {
-                        Menu {
-                            Button("Save current plan", systemImage: "square.and.arrow.down") { saveNamedTrainingPlan() }
-                            Button("Saved plans", systemImage: "folder") { showingSavedPlans = true }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .font(.title2)
+                        HStack(spacing: 8) {
+                            Button { saveNamedTrainingPlan() } label: {
+                                Image(systemName: "square.and.arrow.down")
+                                    .frame(width: 34, height: 34)
+                            }
+                            .accessibilityLabel("Save current plan")
+
+                            Button { showingSavedPlans = true } label: {
+                                Image(systemName: "folder")
+                                    .frame(width: 34, height: 34)
+                            }
+                            .accessibilityLabel("Saved plans")
                         }
+                        .font(.subheadline.weight(.semibold))
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     } else {
                         Button(isComplete ? "Done" : "Stop") { stopTrainingPlan() }
                             .buttonStyle(.bordered)
@@ -498,43 +421,40 @@ struct ContentView: View {
                 }
 
                 if trainingPlanStartedAt == nil {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 10) {
-                    ForEach($trainingPlanViewModel.blocks) { $block in
-                        trainingPlanBlockRow(block: $block)
-                    }
-                    }
-                }
-                .coordinateSpace(name: "trainingPlanEditor")
-                .onPreferenceChange(TrainingPlanRowFramePreferenceKey.self) { frames in
-                    trainingPlanRowFrames = frames
-                }
-                .frame(height: min(max(editorListHeight, 86), maxEditorHeight))
-
-                Menu {
-                    Button { addTrainingPlanBlock(.intervalGroup) } label: {
-                        Label("Interval group", systemImage: "repeat")
-                    }
-                    Button { addTrainingPlanBlock(.steadyRun) } label: {
-                        Label("Regular run", systemImage: "figure.run")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.title3.weight(.bold))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(WorkoutTheme.ink)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(
-                                    WorkoutTheme.controlAccent.opacity(0.75),
-                                    style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
-                                )
+                        VStack(spacing: 10) {
+                        ForEach($trainingPlanViewModel.blocks) { $block in
+                            trainingPlanBlockRow(block: $block)
                         }
-                }
-                .tint(WorkoutTheme.controlAccent)
-                .accessibilityLabel("Add step")
-                .padding(.horizontal, 14)
+                        }
+                        .coordinateSpace(name: "trainingPlanEditor")
+                        .onPreferenceChange(TrainingPlanRowFramePreferenceKey.self) { frames in
+                            trainingPlanRowFrames = frames
+                        }
+
+
+                    Menu {
+                        Button { addTrainingPlanBlock(.intervalGroup) } label: {
+                            Label("Interval group", systemImage: "repeat")
+                        }
+                        Button { addTrainingPlanBlock(.steadyRun) } label: {
+                            Label("Regular run", systemImage: "figure.run")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.title3.weight(.bold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(WorkoutTheme.ink)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(
+                                        style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                                    )
+                            }
+                    }
+                    .tint(WorkoutTheme.controlAccent).opacity(0.75)
+                    .accessibilityLabel("Add step")
+                    .padding(.horizontal, 14)
                 }
             }
             .padding(.vertical, 14)
@@ -555,6 +475,16 @@ struct ContentView: View {
                 if let index = trainingPlanBlocks.firstIndex(where: { $0.id == block.id }) {
                     trainingPlanEditSheet(block: $trainingPlanViewModel.blocks[index])
                 }
+            }
+            .alert("Plan already exists", isPresented: $showingDuplicatePlanAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Update existing") {
+                    guard let duplicatePlan else { return }
+                    trainingPlanViewModel.updateNamedPlan(duplicatePlan)
+                    presentStatusToast("Plan \"\(trainingPlanName)\" updated.")
+                }
+            } message: {
+                Text("A plan named \"\(trainingPlanName)\" is already saved. Do you want to replace it with the current plan?")
             }
         }
     }
@@ -595,7 +525,6 @@ struct ContentView: View {
                 }
                 .frame(minWidth: 68, alignment: .topTrailing)
             }
-
         }
         .padding(14)
         .background(WorkoutTheme.ink)
@@ -626,16 +555,23 @@ struct ContentView: View {
             trainingPlanBlockEditor(block: block)
                 .padding(.horizontal, 14)
                 .offset(x: swipedBlockID == blockID ? -76 : 0)
-                .overlay {
-                    if draggedBlockID == blockID {
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(WorkoutTheme.controlAccent, lineWidth: 2)
-                            .padding(.horizontal, 14)
-                    }
-                }
-                .scaleEffect(draggedBlockID == blockID ? 1.035 : 1)
+                .scaleEffect(pressedBlockID == blockID ? 1.05 : 1)
                 .zIndex(draggedBlockID == blockID ? 1 : 0)
-                .animation(.snappy(duration: 0.18), value: draggedBlockID)
+                .animation(.snappy(duration: 0.18), value: pressedBlockID)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            if pressedBlockID != blockID {
+                                pressedBlockID = blockID
+                            }
+                        }
+                        .onEnded { _ in
+                            guard pressedBlockID == blockID else { return }
+                            withAnimation(.snappy(duration: 0.18)) {
+                                pressedBlockID = nil
+                            }
+                        }
+                )
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 18)
                         .onEnded { value in
@@ -666,8 +602,11 @@ struct ContentView: View {
                 switch value {
                 case .first(true):
                     draggedBlockID = blockID
+                    didMoveTrainingPlanBlock = false
                 case .second(true, let drag?):
-                    guard draggedBlockID == blockID else { return }
+                    let hasMoved = abs(drag.translation.width) > 4 || abs(drag.translation.height) > 4
+                    guard hasMoved else { return }
+                    didMoveTrainingPlanBlock = true
                     reorderTrainingPlanBlock(at: drag.location.y)
                 default:
                     break
@@ -675,13 +614,18 @@ struct ContentView: View {
             }
             .onEnded { _ in
                 guard draggedBlockID == blockID else { return }
-                withAnimation(.snappy) {
+                if didMoveTrainingPlanBlock {
+                    withAnimation(.snappy) {
+                        draggedBlockID = nil
+                    }
+                } else {
                     draggedBlockID = nil
                 }
+                didMoveTrainingPlanBlock = false
             }
     }
 
-    private func reorderTrainingPlanBlock(at y: CGFloat) {
+    private func reorderTrainingPlanBlock(at verticalPosition: CGFloat) {
         guard let draggedBlockID,
               let fromIndex = trainingPlanBlocks.firstIndex(where: { $0.id == draggedBlockID }) else { return }
 
@@ -690,13 +634,13 @@ struct ContentView: View {
         if let downwardTarget = trainingPlanBlocks.indices.reversed().first(where: { index in
             guard index > fromIndex,
                   let frame = trainingPlanRowFrames[trainingPlanBlocks[index].id] else { return false }
-            return y > frame.midY
+            return verticalPosition > frame.midY
         }) {
             destination = downwardTarget + 1
         } else if let upwardTarget = trainingPlanBlocks.indices.first(where: { index in
             guard index < fromIndex,
                   let frame = trainingPlanRowFrames[trainingPlanBlocks[index].id] else { return false }
-            return y < frame.midY
+            return verticalPosition < frame.midY
         }) {
             destination = upwardTarget
         } else {
@@ -801,18 +745,21 @@ struct ContentView: View {
         NavigationStack {
             List {
                 if savedTrainingPlans.isEmpty {
-                    ContentUnavailableView("No saved plans", systemImage: "folder", description: Text("Save a plan from the menu to reuse it later."))
+                    ContentUnavailableView("No saved plans", systemImage: "folder", description: Text("Save a plan to reuse it later."))
                 } else {
                     ForEach(savedTrainingPlans) { plan in
                         Button {
                             trainingPlanViewModel.name = plan.name
                             trainingPlanViewModel.blocks = plan.blocks
                             showingSavedPlans = false
+                            presentStatusToast("Plan \"\(plan.name)\" loaded.")
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(plan.name).font(.headline)
                                 Text("\(plan.blocks.count) blocks · \(durationSummary(plan.blocks.reduce(0) { $0 + $1.totalDuration }))")
                                     .font(.caption).foregroundStyle(.secondary)
+                                Text("Last updated \(plan.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                         .swipeActions {
@@ -829,7 +776,15 @@ struct ContentView: View {
     private func saveNamedTrainingPlan() {
         let name = trainingPlanName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Training plan" : trainingPlanName
         trainingPlanViewModel.name = name
-        trainingPlanViewModel.saveNamedPlan()
+        switch trainingPlanViewModel.saveNamedPlan() {
+        case .saved:
+            presentStatusToast("Plan \"\(name)\" saved.")
+        case .duplicate(let plan):
+            duplicatePlan = plan
+            showingDuplicatePlanAlert = true
+        case nil:
+            break
+        }
     }
 
     private func deleteSavedPlan(_ plan: TrainingPlanTemplate) {
@@ -894,7 +849,7 @@ struct ContentView: View {
             set: { customSpeedInput = sanitizeNumericInput($0) }
         )
     }
-    
+
     private var visibleMetricPreferences: [MetricPreference] {
         metricPreferences.filter(\.isVisible)
     }
@@ -919,126 +874,156 @@ struct ContentView: View {
     private func sanitizeNumericInput(_ input: String) -> String {
         WorkoutInputSanitizer.numericText(input)
     }
-    
+
     private func loadMetricPreferencesIfNeeded() {
         guard !didLoadMetricPreferences else { return }
         didLoadMetricPreferences = true
         metricPreferences = preferencesStore.loadMetricPreferences()
     }
-    
+
     private func saveMetricPreferences() {
         preferencesStore.saveMetricPreferences(metricPreferences)
     }
-    
+
     private func moveMetric(from source: IndexSet, to destination: Int) {
         metricPreferences.move(fromOffsets: source, toOffset: destination)
     }
 
     private func presentStatusToast(_ message: String) {
-        let toastID = UUID()
-        statusToastID = toastID
-
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            statusToastMessage = message
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
-            guard statusToastID == toastID else { return }
-            withAnimation(.easeOut(duration: 0.2)) {
-                statusToastMessage = nil
-            }
-        }
-    }
-
-    private func statusToast(message: String) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            if ftms.isScanning || ftms.isConnecting || ftms.isLoading {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(statusColor)
-                    .controlSize(.small)
-                    .frame(width: 22, height: 22)
-                    .background(statusColor.opacity(0.12))
-                    .clipShape(Circle())
-            } else {
-                Image(systemName: statusIconName)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(statusColor)
-                    .frame(width: 22, height: 22)
-                    .background(statusColor.opacity(0.12))
-                    .clipShape(Circle())
-            }
-
-            Text(message)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: 300)
-        .background(WorkoutTheme.panel)
-        .clipShape(Capsule())
-        .panelNoise(cornerRadius: 20)
-        .overlay(Capsule().stroke(WorkoutTheme.paper.opacity(0.12)))
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
-    }
-
-    private var statusIconName: String {
-        if ftms.isConnecting {
-            return "bolt.horizontal.circle.fill"
-        }
-        if ftms.isScanning {
-            return "dot.radiowaves.left.and.right"
-        }
-        return "antenna.radiowaves.left.and.right"
-    }
-
-    private var statusColor: Color {
-        if ftms.isConnecting {
-            return WorkoutTheme.controlAccent
-        }
-        if ftms.isScanning {
-            return WorkoutTheme.muted
-        }
-        return WorkoutTheme.muted
+        toastWindowManager.show(
+            message: message,
+            showsProgress: message == "Looking for treadmills"
+        )
     }
 }
 
-struct DataRow: View {
-    let label: String
-    let value: Double?
-    let unit: String
+@MainActor
+private final class StatusToastWindowManager: ObservableObject {
+    private var window: UIWindow?
+    private var dismissalWorkItem: DispatchWorkItem?
+    private var isShowing = false
+    private var toastID = UUID()
 
-    init(label: String, value: Double?, unit: String) {
-        self.label = label
-        self.value = value
-        self.unit = unit
-    }
+    func show(message: String, showsProgress: Bool) {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }) else { return }
 
-    init(label: String, value: Int?, unit: String) {
-        self.label = label
-        if let v = value {
-            self.value = Double(v)
+        let toastWindow: UIWindow
+        let shouldAnimateIn = !isShowing
+        if let existingWindow = window, existingWindow.windowScene === scene {
+            toastWindow = existingWindow
         } else {
-            self.value = nil
+            toastWindow = UIWindow(windowScene: scene)
+            toastWindow.windowLevel = .alert
+            toastWindow.backgroundColor = .clear
+            toastWindow.isOpaque = false
+            window = toastWindow
         }
-        self.unit = unit
+
+        let controller = UIHostingController(
+            rootView: GlobalStatusToastView(message: message, showsProgress: showsProgress)
+        )
+        controller.view.backgroundColor = .clear
+        controller.view.isUserInteractionEnabled = false
+        toastWindow.rootViewController = controller
+        toastWindow.isUserInteractionEnabled = false
+        toastWindow.isHidden = false
+
+        toastID = UUID()
+        isShowing = true
+        toastWindow.layer.removeAllAnimations()
+        if shouldAnimateIn {
+            toastWindow.alpha = 0
+            toastWindow.transform = CGAffineTransform(translationX: 0, y: -28)
+            UIView.animate(
+                withDuration: 0.38,
+                delay: 0,
+                usingSpringWithDamping: 0.84,
+                initialSpringVelocity: 0.25,
+                options: [.beginFromCurrentState, .allowUserInteraction]
+            ) {
+                toastWindow.alpha = 1
+                toastWindow.transform = .identity
+            }
+        } else {
+            toastWindow.alpha = 1
+            toastWindow.transform = .identity
+        }
+
+        dismissalWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.hide()
+        }
+        dismissalWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5, execute: workItem)
     }
+
+    private func hide() {
+        guard isShowing, let window else { return }
+        isShowing = false
+        let hidingToastID = toastID
+
+        UIView.animate(
+            withDuration: 0.24,
+            delay: 0,
+            options: [.beginFromCurrentState, .curveEaseIn]
+        ) {
+            window.alpha = 0
+            window.transform = CGAffineTransform(translationX: 0, y: -28)
+        } completion: { [weak self, weak window] _ in
+            guard let self, self.toastID == hidingToastID else { return }
+            window?.isHidden = true
+            window?.alpha = 1
+            window?.transform = .identity
+        }
+    }
+}
+
+private struct GlobalStatusToastView: View {
+    let message: String
+    let showsProgress: Bool
 
     var body: some View {
-        HStack {
-            Text(label)
-                .font(.callout)
-            Spacer()
-            if let value = value {
-                Text(String(format: "%.1f %@", value, unit))
-                    .font(.headline)
-                    .bold()
-            } else {
-                Text("--")
+        VStack {
+            HStack(alignment: .center, spacing: 8) {
+                if showsProgress {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(WorkoutTheme.controlAccent)
+                        .frame(width: 22, height: 22)
+                        .background(WorkoutTheme.controlAccent.opacity(0.12))
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: message == "No treadmills found."
+                          ? "exclamationmark.triangle.fill"
+                          : "checkmark.circle.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(WorkoutTheme.controlAccent)
+                        .frame(width: 22, height: 22)
+                        .background(WorkoutTheme.controlAccent.opacity(0.12))
+                        .clipShape(Circle())
+                }
+
+                Text(message)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: 300)
+            .background(WorkoutTheme.panel)
+            .clipShape(Capsule())
+            .panelNoise(cornerRadius: 20)
+            .overlay(Capsule().stroke(WorkoutTheme.paper.opacity(0.12)))
+            .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
+            .padding(.top, 8)
+
+            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
     }
 }

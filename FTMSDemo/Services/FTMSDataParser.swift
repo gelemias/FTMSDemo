@@ -2,6 +2,9 @@ import Foundation
 
 /// Decodes the FTMS Treadmill Data characteristic without Bluetooth or UI dependencies.
 struct FTMSDataParser {
+    // The FTMS characteristic is a flag-driven wire format; keeping the flag map together
+    // makes the decoder auditable and avoids scattering byte offsets across helpers.
+    // swiftlint:disable cyclomatic_complexity
     func parse(_ data: Data) -> TreadmillData? {
         var cursor = 0
 
@@ -69,6 +72,7 @@ struct FTMSDataParser {
 
         return result
     }
+    // swiftlint:enable cyclomatic_complexity
 }
 
 private extension UInt16 {

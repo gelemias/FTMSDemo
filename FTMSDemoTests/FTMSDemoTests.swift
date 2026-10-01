@@ -6,11 +6,10 @@
 //
 
 import CoreBluetooth
-import Testing
 @testable import FTMSDemo
+import Testing
 
 struct FTMSDemoTests {
-
     @Test func parsesTreadmillDataAndDerivesMetrics() {
         // Flags: total distance, incline, instant pace, and heart rate.
         let packet = Data([
@@ -20,7 +19,7 @@ struct FTMSDemoTests {
             0x32, 0x00,       // +5.0% incline
             0x00, 0x00,       // ramp angle
             0x2D, 0x00,       // 4.5 min/km
-            0x78              // 120 bpm
+            0x78,              // 120 bpm
         ])
 
         let result = FTMSDataParser().parse(packet)
@@ -47,7 +46,7 @@ struct FTMSDemoTests {
         let blocks = [
             TrainingPlanBlock(kind: .warmUp, durationSeconds: 60, targetSpeedKmh: 8),
             TrainingPlanBlock(kind: .intervalGroup, durationSeconds: 30, targetSpeedKmh: 12, repetitions: 2, recoveryDurationSeconds: 15, recoverySpeedKmh: 8),
-            TrainingPlanBlock(kind: .coolDown, durationSeconds: 45, targetSpeedKmh: 6)
+            TrainingPlanBlock(kind: .coolDown, durationSeconds: 45, targetSpeedKmh: 6),
         ]
 
         let steps = TrainingPlanCalculator.steps(from: blocks)
@@ -66,9 +65,10 @@ struct FTMSDemoTests {
         let legacySteps = [
             TrainingPlanStep(title: "Warm up", durationSeconds: 60, targetSpeedKmh: 8, phase: .warmUp),
             TrainingPlanStep(title: "Run", durationSeconds: 120, targetSpeedKmh: 10, phase: .steadyRun),
-            TrainingPlanStep(title: "Cool down", durationSeconds: 60, targetSpeedKmh: 6, phase: .coolDown)
+            TrainingPlanStep(title: "Cool down", durationSeconds: 60, targetSpeedKmh: 6, phase: .coolDown),
         ]
-        defaults.set(String(data: try! JSONEncoder().encode(legacySteps), encoding: .utf8), forKey: "training_plan_steps_json")
+        let legacyData = try? JSONEncoder().encode(legacySteps)
+        defaults.set(String(data: legacyData ?? Data(), encoding: .utf8), forKey: "training_plan_steps_json")
 
         let migrated = store.loadBlocks()
         #expect(migrated.count == 3)
@@ -87,7 +87,7 @@ struct FTMSDemoTests {
 
         store.saveMetricPreferences([
             MetricPreference(id: .speed, isVisible: false),
-            MetricPreference(id: .speed, isVisible: true)
+            MetricPreference(id: .speed, isVisible: true),
         ])
         let metrics = store.loadMetricPreferences()
         #expect(metrics.count == MetricID.allCases.count)

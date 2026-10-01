@@ -1,0 +1,100 @@
+# Based on SwiftLint's upstream configuration:
+# https://github.com/realm/SwiftLint/blob/main/.swiftlint.yml
+
+included:
+  - FTMSDemo
+  - FTMSDemoTests
+  - FTMSDemoWidgets
+
+analyzer_rules:
+  - unused_declaration
+  - unused_import
+
+opt_in_rules:
+  - all
+
+disabled_rules:
+  - anonymous_argument_in_multiline_closure
+  - conditional_returns_on_newline
+  - contrasted_opening_brace
+  - convenience_type
+  - discouraged_default_parameter
+  - discouraged_optional_collection
+  - explicit_acl
+  - explicit_enum_raw_value
+  - explicit_top_level_acl
+  - explicit_type_interface
+  - file_types_order
+  - force_unwrapping
+  - function_default_parameter_at_end
+  - indentation_width
+  - missing_docs
+  - multiline_arguments
+  - multiline_arguments_brackets
+  - multiline_call_arguments
+  - multiline_function_chains
+  - multiline_parameters_brackets
+  - no_extension_access_modifier
+  - no_grouping_extension
+  - no_magic_numbers
+  - one_declaration_per_file
+  - prefer_nimble
+  - prefixed_toplevel_constant
+  - required_deinit
+  - sorted_enum_cases
+  - strict_fileprivate
+  - switch_case_on_newline
+  - todo
+  - trailing_closure
+  - type_contents_order
+  - variable_shadowing
+  - vertical_whitespace_between_cases
+
+closure_body_length:
+  warning: 50
+  error: 100
+
+function_body_length: 60
+
+identifier_name:
+  excluded:
+    - id
+
+large_tuple: 3
+
+number_separator:
+  minimum_length: 5
+
+redundant_self:
+  keep_in_initializers: true
+  only_in_closures: false
+
+redundant_type_annotation:
+  consider_default_literal_types_redundant: true
+
+trailing_comma:
+  mandatory_comma: true
+
+type_body_length:
+  warning: 400
+  excluded_types: []
+
+file_length:
+  warning: 500
+  error: 600
+
+cyclomatic_complexity:
+  ignores_case_statements: true
+
+unneeded_override:
+  affect_initializers: true
+
+custom_rules:
+  fatal_error:
+    name: Fatal Error
+    excluded: "Tests/*"
+    message: Prefer queuedFatalError over fatalError to avoid leaking compiler host machine paths
+    regex: \\bfatalError\\b
+    match_kinds:
+      - identifier
+    severity: error

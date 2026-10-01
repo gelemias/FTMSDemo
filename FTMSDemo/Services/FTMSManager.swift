@@ -5,14 +5,13 @@
 //  Created by DELGADO Guillermo on 15/11/25.
 //
 
-import Foundation
-import CoreBluetooth
 import Combine
+import CoreBluetooth
+import Foundation
 
 class FTMSManager: NSObject, ObservableObject {
-
     @Published var treadmillData = TreadmillData()
-    @Published var statusMessage: String = "Looking for treadmills" {
+    @Published var statusMessage = "Looking for treadmills" {
         didSet {
             print(statusMessage)
         }
@@ -34,6 +33,8 @@ class FTMSManager: NSObject, ObservableObject {
     private var central: CBCentralManager!
     private var treadmill: CBPeripheral?
     private var discoveredPeripheralMap: [UUID: CBPeripheral] = [:]
+    private var scanTimeoutWorkItem: DispatchWorkItem?
+    private let scanTimeout: TimeInterval = 10
 
     // FTMS
     private let ftmsServiceUUID = CBUUID(string: "1826")
@@ -75,6 +76,12 @@ class FTMSManager: NSObject, ObservableObject {
             withServices: [ftmsServiceUUID],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
+
+        let timeoutWorkItem = DispatchWorkItem { [weak self] in
+            self?.finishScanIfNoTreadmillsFound()
+        }
+        scanTimeoutWorkItem = timeoutWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + scanTimeout, execute: timeoutWorkItem)
     }
 
     func connect(to treadmillID: UUID) {
@@ -142,7 +149,6 @@ class FTMSManager: NSObject, ObservableObject {
 }
 
 extension FTMSManager {
-
     func requestControl() {
         sendControlPoint(opcode: 0x00)
         statusMessage = "Requesting treadmill control..."
@@ -180,22 +186,35 @@ extension FTMSManager {
     }
 
     private func sendControlPoint(opcode: UInt8) {
-        guard let cp = controlPointCharacteristic,
+        guard let controlPoint = controlPointCharacteristic,
               let treadmill else {
             statusMessage = "Treadmill controls are not ready yet."
             return
         }
 
-        treadmill.writeValue(FTMSCommandEncoder.controlPoint(opcode: opcode), for: cp, type: .withResponse)
+        treadmill.writeValue(
+            FTMSCommandEncoder.controlPoint(opcode: opcode),
+            for: controlPoint,
+            type: .withResponse
+        )
     }
 
     private func stopScan() {
+        scanTimeoutWorkItem?.cancel()
+        scanTimeoutWorkItem = nil
+
         if central.isScanning {
             central.stopScan()
         }
         if presentation.isScanning {
             presentation.isScanning = false
         }
+    }
+
+    private func finishScanIfNoTreadmillsFound() {
+        guard presentation.isScanning, discoveredPeripheralMap.isEmpty else { return }
+        central.stopScan()
+        presentation.markScanTimedOut()
     }
 
     private func resetDiscovery() {
@@ -239,7 +258,7 @@ extension FTMSManager {
 }
 
 extension FTMSManager: CBCentralManagerDelegate {
-    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
+    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
         guard let restoredPeripheral = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
               let peripheral = restoredPeripheral.first else { return }
 
@@ -264,17 +283,15 @@ extension FTMSManager: CBCentralManagerDelegate {
         }
     }
 
-    func centralManager(_ central: CBCentralManager,
+    func centralManager(_: CBCentralManager,
                         didDiscover peripheral: CBPeripheral,
-                        advertisementData: [String: Any],
+                        advertisementData _: [String: Any],
                         rssi RSSI: NSNumber) {
-
         upsertDiscoveredTreadmill(peripheral, rssi: RSSI.intValue)
     }
 
-    func centralManager(_ central: CBCentralManager,
+    func centralManager(_: CBCentralManager,
                         didConnect peripheral: CBPeripheral) {
-
         presentation.markConnected(name: displayName(for: peripheral))
 
         if peripheral == treadmill {
@@ -282,15 +299,15 @@ extension FTMSManager: CBCentralManagerDelegate {
         }
     }
 
-    func centralManager(_ central: CBCentralManager,
+    func centralManager(_: CBCentralManager,
                         didFailToConnect peripheral: CBPeripheral,
-                        error: Error?) {
+                        error _: Error?) {
         treadmill = nil
         presentation.markConnectionFailed(name: displayName(for: peripheral))
         startScan()
     }
 
-    func centralManager(_ central: CBCentralManager,
+    func centralManager(_: CBCentralManager,
                         didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
         let name = displayName(for: peripheral)
@@ -301,7 +318,6 @@ extension FTMSManager: CBCentralManagerDelegate {
 }
 
 extension FTMSManager: CBPeripheralDelegate {
-
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error {
             statusMessage = "Could not load treadmill services: \(error.localizedDescription)"
@@ -319,7 +335,6 @@ extension FTMSManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService,
                     error: Error?) {
-
         if let error {
             statusMessage = "Could not load treadmill controls: \(error.localizedDescription)"
             isLoading = false
@@ -345,13 +360,13 @@ extension FTMSManager: CBPeripheralDelegate {
         )
     }
 
-    func peripheral(_ peripheral: CBPeripheral,
+    func peripheral(_: CBPeripheral,
                     didUpdateNotificationStateFor characteristic: CBCharacteristic,
                     error: Error?) {
         print("Notify state for \(characteristic.uuid): \(characteristic.isNotifying), error: \(String(describing: error))")
     }
 
-    func peripheral(_ peripheral: CBPeripheral,
+    func peripheral(_: CBPeripheral,
                     didUpdateValueFor characteristic: CBCharacteristic,
                     error: Error?) {
         guard error == nil, let data = characteristic.value else { return }

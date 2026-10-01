@@ -7,9 +7,14 @@ struct ConnectionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
+                    MascotAnimation()
+                        .frame(width: 150, height: 150)
+                        .frame(maxWidth: .infinity)
+
                     Text("READY TO WORK?")
                         .font(.system(size: 34, weight: .black).italic())
-                        .foregroundStyle(WorkoutTheme.orange)
+                        .foregroundStyle(WorkoutTheme.orange.gradient)
+                        .shadow(radius: 1.0, x: 1.0, y: 1.0)
 
                     Text("Connect your treadmill. Keep your eyes on the belt, not the screen.")
                         .font(.title3.weight(.medium))
@@ -51,7 +56,7 @@ struct ConnectionView: View {
 
                                         Spacer()
 
-                                        if viewModel.selectedTreadmillID == treadmill.id && viewModel.isConnecting {
+                                        if viewModel.selectedTreadmillID == treadmill.id, viewModel.isConnecting {
                                             ProgressView()
                                         } else {
                                             Image(systemName: "chevron.right")
@@ -72,7 +77,7 @@ struct ConnectionView: View {
                 }
 
                 Button {
-                    guard !viewModel.isScanning && !viewModel.isConnecting else { return }
+                    guard !viewModel.isScanning, !viewModel.isConnecting else { return }
                     viewModel.startScan()
                 } label: {
                     Label(viewModel.isScanning ? "Scanning..." : "Search Again", systemImage: "arrow.clockwise")
@@ -80,22 +85,23 @@ struct ConnectionView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(WorkoutTheme.orange)
+                .tint(WorkoutTheme.orange.gradient)
                 .foregroundStyle(WorkoutTheme.primaryButtonForeground)
                 .controlSize(.large)
-                .opacity(viewModel.isScanning || viewModel.isConnecting ? 0.55 : 1)
+                .disabled(viewModel.isScanning || viewModel.isConnecting)
             }
             .padding()
         }
         .scrollContentBackground(.hidden)
         .safeAreaPadding(.bottom, 144)
-        .navigationTitle("FTMS")
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("No treadmills found yet").font(.headline)
-            Text("Make sure the treadmill is powered on and advertising over Bluetooth, then keep this screen open for a few seconds.")
+            Text(viewModel.isScanning ? "Looking for treadmills..." : "No treadmills found")
+                .font(.headline)
+            Text("Keep this screen open while we search nearby and make sure the treadmill is powered on and advertising over Bluetooth, then tap Search Again to try again.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }

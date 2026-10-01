@@ -20,6 +20,12 @@ struct TrainingPlanActivityAttributes: ActivityAttributes {
     var treadmillName: String
 }
 
+struct TrainingPlanRunnerActions {
+    let sendSpeed: (Double) -> Void
+    let startTreadmill: () -> Void
+    let stopTreadmill: () -> Void
+}
+
 @MainActor
 final class TrainingPlanRunner: NSObject, ObservableObject {
     @Published private(set) var currentStep: TrainingPlanStep?
@@ -46,24 +52,22 @@ final class TrainingPlanRunner: NSObject, ObservableObject {
         blocks: [TrainingPlanBlock],
         workoutName: String,
         treadmillName: String,
-        sendSpeed: @escaping (Double) -> Void,
-        startTreadmill: @escaping () -> Void,
-        stopTreadmill: @escaping () -> Void
+        actions: TrainingPlanRunnerActions
     ) {
         guard !blocks.isEmpty else { return }
 
-        self.steps = blocks.flatMap { $0.expandedSteps() }
+        steps = blocks.flatMap { $0.expandedSteps() }
         self.workoutName = workoutName
         self.treadmillName = treadmillName
-        self.sendSpeed = sendSpeed
-        self.startTreadmill = startTreadmill
-        self.stopTreadmill = stopTreadmill
-        self.startedAt = Date()
-        self.isRunning = true
+        sendSpeed = actions.sendSpeed
+        startTreadmill = actions.startTreadmill
+        stopTreadmill = actions.stopTreadmill
+        startedAt = Date()
+        isRunning = true
 
         beginWorkoutSessionIfAvailable()
         startLiveActivity()
-        self.startTreadmill?()
+        startTreadmill?()
         tick()
 
         let timer = DispatchSource.makeTimerSource(queue: .main)
@@ -235,9 +239,9 @@ final class TrainingPlanRunner: NSObject, ObservableObject {
 }
 
 extension TrainingPlanRunner: HKWorkoutSessionDelegate {
-    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {}
+    nonisolated func workoutSession(_: HKWorkoutSession, didChangeTo _: HKWorkoutSessionState, from _: HKWorkoutSessionState, date _: Date) {}
 
-    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+    nonisolated func workoutSession(_: HKWorkoutSession, didFailWithError error: Error) {
         print("Workout session failed: \(error)")
     }
 }

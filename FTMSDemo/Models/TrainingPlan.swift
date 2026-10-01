@@ -159,11 +159,26 @@ struct TrainingPlanTemplate: Identifiable, Codable, Equatable {
     var blocks: [TrainingPlanBlock]
     var createdAt: Date
 
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case blocks
+        case createdAt
+    }
+
     init(id: UUID = UUID(), name: String, blocks: [TrainingPlanBlock], createdAt: Date = Date()) {
         self.id = id
         self.name = name
         self.blocks = blocks
         self.createdAt = createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        blocks = try container.decode([TrainingPlanBlock].self, forKey: .blocks)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     }
 }
 
@@ -176,13 +191,13 @@ struct TrainingPlan: Identifiable, Codable, Equatable {
         steps.reduce(0) { $0 + $1.durationSeconds }
     }
 
-    static let today = TrainingPlan(
+    static let today = Self(
         name: "Intervals for today",
         steps: [
             TrainingPlanStep(title: "Warm up", durationSeconds: 12 * 60, targetSpeedKmh: 8.0, phase: .warmUp),
             intervalStep, recoveryStep, intervalStep, recoveryStep,
             intervalStep, recoveryStep, intervalStep, recoveryStep,
-            TrainingPlanStep(title: "Cool down", durationSeconds: 10 * 60, targetSpeedKmh: 6.0, phase: .coolDown)
+            TrainingPlanStep(title: "Cool down", durationSeconds: 10 * 60, targetSpeedKmh: 6.0, phase: .coolDown),
         ]
     )
 
@@ -205,7 +220,7 @@ extension TrainingPlan {
     static let todayBlocks: [TrainingPlanBlock] = [
         TrainingPlanBlock(kind: .warmUp, durationSeconds: 15 * 60, targetSpeedKmh: 12.0),
         TrainingPlanBlock(kind: .intervalGroup, durationSeconds: 3 * 60, targetSpeedKmh: 16.0, repetitions: 5, recoveryDurationSeconds: 90, recoverySpeedKmh: 10.0),
-        TrainingPlanBlock(kind: .coolDown, durationSeconds: 5 * 60, targetSpeedKmh: 8.0)
+        TrainingPlanBlock(kind: .coolDown, durationSeconds: 5 * 60, targetSpeedKmh: 8.0),
     ]
 
     static var todayFromBlocks: TrainingPlan {

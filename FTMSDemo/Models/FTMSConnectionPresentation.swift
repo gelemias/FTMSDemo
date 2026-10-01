@@ -5,8 +5,8 @@
 //  Created by Codex on 22/04/26.
 //
 
-import Foundation
 import CoreBluetooth
+import Foundation
 
 struct DiscoveredTreadmill: Identifiable, Equatable {
     let id: UUID
@@ -48,6 +48,12 @@ struct FTMSConnectionPresentation: Equatable {
         statusMessage = discoveredTreadmills.count == 1
             ? "1 treadmill found nearby."
             : "\(discoveredTreadmills.count) treadmills found nearby."
+    }
+
+    mutating func markScanTimedOut() {
+        isLoading = false
+        isScanning = false
+        statusMessage = "No treadmills found."
     }
 
     mutating func beginConnecting(to treadmillID: UUID, name: String) {
